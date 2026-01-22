@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flow5Y | Session-Only Edition</title>
+    <title>Flow5Y | Paycheck + Calendar Master</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -40,6 +40,29 @@
             display: none;
         }
 
+        /* Calendar Styling */
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 1px;
+            background: #e2e8f0;
+            border: 1px solid #e2e8f0;
+            border-radius: 1.5rem;
+            overflow: hidden;
+        }
+
+        .calendar-day {
+            background: white;
+            min-height: 110px;
+            padding: 0.75rem;
+            transition: background 0.2s;
+            position: relative;
+        }
+
+        .calendar-day:hover {
+            background: #f1f5f9;
+        }
+
         .action-btn {
             width: 28px;
             height: 28px;
@@ -63,6 +86,29 @@
             color: #ef4444;
             background: #fef2f2;
         }
+
+        .toggle-pill {
+            background: #f1f5f9;
+            padding: 4px;
+            border-radius: 1rem;
+            display: flex;
+            gap: 4px;
+        }
+
+        .toggle-btn {
+            padding: 6px 16px;
+            border-radius: 0.75rem;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            transition: all 0.2s;
+        }
+
+        .toggle-btn.active {
+            background: white;
+            color: #4f46e5;
+            shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
     </style>
 </head>
 
@@ -85,21 +131,16 @@
         ];
 
         function App() {
-            // All state is now session-only. No useEffect for localStorage.
             const [bills, setBills] = useState([]);
             const [incomes, setIncomes] = useState([]);
             const [overrides, setOverrides] = useState({});
             const [activeYear, setActiveYear] = useState("2026");
             const [activeMonth, setActiveMonth] = useState("January");
+            const [viewMode, setViewMode] = useState('paycheck'); // 'paycheck' or 'calendar'
             const [showModal, setShowModal] = useState(null);
             const [editCtx, setEditCtx] = useState(null);
             const [form, setForm] = useState({ name: '', amount: '', date: '', freq: 'monthly', category: 'Housing' });
             const fileInputRef = useRef(null);
-
-            const clearAndOpen = (type) => {
-                setForm({ name: '', amount: '', date: '', freq: type === 'income' ? 'biweekly' : 'monthly', category: 'Housing' });
-                setShowModal(type);
-            };
 
             const generateInstances = (items, start, end) => {
                 let list = [];
@@ -112,14 +153,7 @@
                         const ovr = overrides[key];
                         const actualDate = new Date((ovr?.date || dateStr) + 'T12:00:00');
                         if (actualDate >= start) {
-                            list.push({
-                                ...item,
-                                origDateStr: dateStr,
-                                actualDate,
-                                amount: ovr?.amount || item.amount,
-                                name: ovr?.name || item.name,
-                                category: ovr?.category || item.category
-                            });
+                            list.push({ ...item, origDateStr: dateStr, actualDate, amount: ovr?.amount || item.amount });
                         }
                         if (item.freq === 'weekly') curr.setDate(curr.getDate() + 7);
                         else if (item.freq === 'biweekly') curr.setDate(curr.getDate() + 14);
@@ -155,7 +189,15 @@
                     }, 0);
                     return { income: inc, bills: attached, billSum, remaining: parseFloat(inc.amount || 0) - billSum };
                 });
-                return { cards, tInc, tBill, tSave };
+
+                // Calendar
+                const firstDayOfMonth = new Date(activeYear, monthIdx, 1).getDay();
+                const daysInMonth = new Date(activeYear, monthIdx + 1, 0).getDate();
+                const calDays = [];
+                for (let i = 0; i < firstDayOfMonth; i++) calDays.push(null);
+                for (let i = 1; i <= daysInMonth; i++) calDays.push(i);
+
+                return { cards, tInc, tBill, tSave, calDays, allInc, allBills, monthIdx };
             }, [bills, incomes, activeYear, activeMonth, overrides]);
 
             const moveDate = (item, direction) => {
@@ -167,114 +209,144 @@
                 setOverrides({ ...overrides, [`${item.id}-${item.origDateStr}`]: { ...item, date: newDate.toISOString().split('T')[0] } });
             };
 
-            const startEdit = (item, type) => {
-                setEditCtx({ item, type });
-                setForm({ ...item, date: item.actualDate.toISOString().split('T')[0] });
-                setShowModal('edit');
-            };
-
             return (
                 <div className="max-w-7xl mx-auto p-4 md:p-12">
-                    <header className="flex justify-between items-center mb-8">
+                    <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
                         <div>
-                            <h1 className="text-3xl font-black italic uppercase leading-none">Flow<span className="text-indigo-600">5Y</span></h1>
-                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Session Only Mode</p>
+                            <h1 className="text-4xl font-black italic uppercase leading-none tracking-tighter">Flow<span className="text-indigo-600">5Y</span></h1>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Planning: {activeMonth} {activeYear}</p>
                         </div>
-                        <div className="flex gap-2">
-                            <button onClick={() => clearAndOpen('income')} className="bg-white border font-black uppercase px-6 py-3 rounded-2xl text-[10px] shadow-sm hover:bg-slate-50">+ Income</button>
-                            <button onClick={() => clearAndOpen('bill')} className="bg-slate-900 text-white font-black uppercase px-6 py-3 rounded-2xl text-[10px] shadow-lg">+ Bill/Save</button>
+
+                        <div className="flex flex-wrap gap-3">
+                            <div className="toggle-pill">
+                                <button onClick={() => setViewMode('paycheck')} className={`toggle-btn ${viewMode === 'paycheck' ? 'active' : ''}`}>List</button>
+                                <button onClick={() => setViewMode('calendar')} className={`toggle-btn ${viewMode === 'calendar' ? 'active' : ''}`}>Calendar</button>
+                            </div>
+                            <button onClick={() => { setForm({ name: '', amount: '', date: '', freq: 'biweekly' }); setShowModal('income'); }} className="bg-white border font-black uppercase px-6 py-3 rounded-2xl text-[10px] hover:bg-slate-50">+ Paycheck</button>
+                            <button onClick={() => { setForm({ name: '', amount: '', date: '', freq: 'monthly', category: 'Housing' }); setShowModal('bill'); }} className="bg-slate-900 text-white font-black uppercase px-6 py-3 rounded-2xl text-[10px] shadow-lg">+ Bill</button>
                         </div>
                     </header>
 
-                    {/* Navigation */}
+                    {/* MONTHLY OVERVIEW CARDS */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                        <div className="glass p-8 border-l-4 border-emerald-500 shadow-sm">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Monthly Cash-In</p>
+                            <h3 className="text-4xl font-black text-slate-800">${processed.tInc.toFixed(2)}</h3>
+                        </div>
+                        <div className="glass p-8 border-l-4 border-rose-500 shadow-sm">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Monthly Bills</p>
+                            <h3 className="text-4xl font-black text-slate-800">${processed.tBill.toFixed(2)}</h3>
+                        </div>
+                        <div className="glass p-8 border-l-4 border-indigo-500 shadow-sm">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Monthly Savings</p>
+                            <h3 className="text-4xl font-black text-slate-800">${processed.tSave.toFixed(2)}</h3>
+                        </div>
+                    </div>
+
+                    {/* YEAR & MONTH NAV */}
                     <div className="flex gap-2 mb-6 overflow-x-auto no-scrollbar">
                         {["2026", "2027", "2028", "2029", "2030"].map(y => (
-                            <button key={y} onClick={() => setActiveYear(y)} className={`px-10 py-3 rounded-2xl font-black transition-all shrink-0 ${activeYear === y ? 'tab-active' : 'bg-white text-slate-400'}`}>{y}</button>
+                            <button key={y} onClick={() => setActiveYear(y)} className={`px-10 py-3 rounded-2xl font-black shrink-0 transition-all ${activeYear === y ? 'tab-active' : 'bg-white text-slate-400'}`}>{y}</button>
                         ))}
                     </div>
 
                     <div className="flex gap-6 mb-10 overflow-x-auto no-scrollbar border-b">
                         {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map(m => (
-                            <button key={m} onClick={() => setActiveMonth(m)} className={`pb-4 px-1 text-[11px] font-black uppercase shrink-0 transition-all ${activeMonth === m ? 'subtab-active text-indigo-600' : 'text-slate-300'}`}>{m}</button>
+                            <button key={m} onClick={() => setActiveMonth(m)} className={`pb-4 px-1 text-[11px] font-black uppercase shrink-0 transition-all ${activeMonth === m ? 'subtab-active text-indigo-600 border-indigo-600' : 'text-slate-300 border-transparent'}`}>{m}</button>
                         ))}
                     </div>
 
-                    {/* Monthly Summary */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                        <div className="glass p-8 border-l-4 border-emerald-400"><p className="text-[10px] font-black text-slate-400 uppercase">Monthly In</p><h3 className="text-3xl font-black text-emerald-600">${processed.tInc.toFixed(2)}</h3></div>
-                        <div className="glass p-8 border-l-4 border-rose-400"><p className="text-[10px] font-black text-slate-400 uppercase">Monthly Bills</p><h3 className="text-3xl font-black text-rose-600">${processed.tBill.toFixed(2)}</h3></div>
-                        <div className="glass p-8 border-l-4 border-indigo-400"><p className="text-[10px] font-black text-slate-400 uppercase">Monthly Saved</p><h3 className="text-3xl font-black text-indigo-600">${processed.tSave.toFixed(2)}</h3></div>
-                    </div>
-
-                    {/* Main Cards View */}
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {processed.cards.length === 0 ? (
-                            <div className="col-span-full py-20 text-center border-2 border-dashed border-slate-200 rounded-[3rem]">
-                                <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">No data in current view. Import your file or add an entry.</p>
-                            </div>
-                        ) : processed.cards.map((card, i) => (
-                            <div key={i} className="glass p-8 flex flex-col border-t-8 border-indigo-500 shadow-xl">
-                                <div className="mb-6 flex justify-between items-start">
-                                    <div>
-                                        <h4 className="text-2xl font-black">{card.income.actualDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</h4>
-                                        <p className="text-[11px] font-bold text-slate-400 uppercase">{card.income.name} (${parseFloat(card.income.amount).toFixed(2)})</p>
+                    {/* VIEWS */}
+                    {viewMode === 'paycheck' ? (
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                            {processed.cards.length === 0 && <div className="col-span-full text-center py-20 bg-slate-50 rounded-[3rem] border-2 border-dashed text-slate-400 font-bold uppercase text-xs">No data for this month. Import a file below.</div>}
+                            {processed.cards.map((card, i) => (
+                                <div key={i} className="glass p-8 flex flex-col border-t-8 border-indigo-500 shadow-xl">
+                                    <div className="mb-6 flex justify-between items-start">
+                                        <div>
+                                            <h4 className="text-2xl font-black text-slate-800">{card.income.actualDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</h4>
+                                            <p className="text-[11px] font-bold text-slate-400 uppercase">{card.income.name} (${parseFloat(card.income.amount).toFixed(2)})</p>
+                                        </div>
+                                        <div className="flex gap-0.5 bg-slate-50 p-1 rounded-xl">
+                                            <button title="Shift to Friday" onClick={() => moveDate(card.income, 'friday')} className="action-btn">←</button>
+                                            <button title="Shift to Monday" onClick={() => moveDate(card.income, 'monday')} className="action-btn">→</button>
+                                            <button onClick={() => { setEditCtx({ item: card.income, type: 'income' }); setForm({ ...card.income, date: card.income.actualDate.toISOString().split('T')[0] }); setShowModal('edit'); }} className="action-btn">✎</button>
+                                        </div>
                                     </div>
-                                    <div className="flex gap-0.5 bg-slate-50 p-1 rounded-xl">
-                                        <button onClick={() => moveDate(card.income, 'friday')} className="action-btn">←</button>
-                                        <button onClick={() => moveDate(card.income, 'monday')} className="action-btn">→</button>
-                                        <button onClick={() => startEdit(card.income, 'income')} className="action-btn">✎</button>
-                                        <button onClick={() => setIncomes(incomes.filter(inc => inc.id !== card.income.id))} className="action-btn delete-btn">×</button>
-                                    </div>
-                                </div>
-
-                                <div className="flex-1 space-y-4 mb-8 min-h-[150px]">
-                                    {card.bills.map((b, bi) => (
-                                        <div key={bi} className="flex justify-between items-center group">
-                                            <div>
-                                                <p className="text-[11px] font-black text-slate-700 uppercase">{b.name}</p>
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase">{b.actualDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className={`text-[11px] font-black ${b.category === 'Savings' ? 'text-emerald-500' : 'text-rose-500'}`}>-${parseFloat(b.amount).toFixed(2)}</span>
-                                                <div className="flex opacity-0 group-hover:opacity-100 transition-opacity bg-white border rounded-lg shadow-sm">
-                                                    <button onClick={() => moveDate(b, 'friday')} className="action-btn scale-75">←</button>
-                                                    <button onClick={() => moveDate(b, 'monday')} className="action-btn scale-75">→</button>
-                                                    <button onClick={() => startEdit(b, 'bill')} className="action-btn scale-75">✎</button>
-                                                    <button onClick={() => setBills(bills.filter(bi => bi.id !== b.id))} className="action-btn delete-btn scale-75">×</button>
+                                    <div className="flex-1 space-y-4 mb-8 min-h-[100px]">
+                                        {card.bills.map((b, bi) => (
+                                            <div key={bi} className="flex justify-between items-center group">
+                                                <div>
+                                                    <p className="text-[11px] font-black text-slate-700 uppercase">{b.name}</p>
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase">{b.actualDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-[11px] font-black ${b.category === 'Savings' ? 'text-emerald-500' : 'text-rose-500'}`}>-${parseFloat(b.amount).toFixed(2)}</span>
+                                                    <div className="flex opacity-0 group-hover:opacity-100 transition-opacity bg-white border rounded-lg">
+                                                        <button onClick={() => moveDate(b, 'friday')} className="action-btn scale-75">←</button>
+                                                        <button onClick={() => moveDate(b, 'monday')} className="action-btn scale-75">→</button>
+                                                        <button onClick={() => { setEditCtx({ item: b, type: 'bill' }); setForm({ ...b, date: b.actualDate.toISOString().split('T')[0] }); setShowModal('edit'); }} className="action-btn scale-75">✎</button>
+                                                        <button onClick={() => setBills(bills.filter(bi => bi.id !== b.id))} className="action-btn delete-btn scale-75">×</button>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
+                                    <div className="pt-6 border-t flex justify-between items-end">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cycle Balance</p>
+                                        <p className={`text-3xl font-black ${card.remaining >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>${card.remaining.toFixed(2)}</p>
+                                    </div>
                                 </div>
-
-                                <div className="pt-6 border-t border-slate-100 flex justify-between items-end">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Surplus</p>
-                                    <p className={`text-3xl font-black ${card.remaining >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>${card.remaining.toFixed(2)}</p>
-                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="glass p-4 md:p-8 shadow-2xl overflow-hidden">
+                            <div className="grid grid-cols-7 mb-4">
+                                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d} className="text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">{d}</div>)}
                             </div>
-                        ))}
-                    </div>
+                            <div className="calendar-grid">
+                                {processed.calDays.map((day, i) => {
+                                    if (!day) return <div key={i} className="calendar-day bg-slate-50/50"></div>;
+                                    const dateStr = `${activeYear}-${(processed.monthIdx + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                                    const dayIncs = processed.allInc.filter(inc => inc.actualDate.toISOString().split('T')[0] === dateStr);
+                                    const dayBills = processed.allBills.filter(b => b.actualDate.toISOString().split('T')[0] === dateStr);
 
-                    {/* Session Management */}
-                    <div className="mt-20 flex flex-col items-center gap-6 py-10 border-t">
-                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Session Management</p>
+                                    return (
+                                        <div key={i} className="calendar-day">
+                                            <span className="text-[10px] font-black text-slate-300">{day}</span>
+                                            <div className="mt-1 space-y-1">
+                                                {dayIncs.map((inc, ii) => (
+                                                    <div key={ii} className="bg-emerald-500 text-white text-[8px] p-1 rounded font-black truncate">IN: ${parseFloat(inc.amount).toFixed(0)}</div>
+                                                ))}
+                                                {dayBills.map((b, bi) => (
+                                                    <div key={bi} className={`${b.category === 'Savings' ? 'bg-indigo-500' : 'bg-rose-500'} text-white text-[8px] p-1 rounded font-black truncate`}>{b.name.substring(0, 8)}</div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* IMPORT / EXPORT */}
+                    <div className="mt-20 flex flex-col items-center gap-6 py-10 border-t border-slate-200">
+                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em]">Data Safe (Session Only)</p>
                         <div className="flex gap-4">
                             <button onClick={() => {
                                 const blob = new Blob([JSON.stringify({ bills, incomes, overrides })], { type: 'application/json' });
                                 const url = URL.createObjectURL(blob);
-                                const a = document.createElement('a'); a.href = url; a.download = `flow5y_export_${new Date().toISOString().split('T')[0]}.json`; a.click();
-                            }} className="px-10 py-4 bg-indigo-600 text-white font-black text-[10px] uppercase rounded-2xl shadow-lg shadow-indigo-100">Export All Data</button>
+                                const a = document.createElement('a'); a.href = url; a.download = `flow5y_${activeYear}.json`; a.click();
+                            }} className="px-10 py-4 bg-white border-2 border-slate-100 font-black text-[10px] uppercase rounded-2xl hover:bg-slate-50">Export Data</button>
 
-                            <button onClick={() => fileInputRef.current.click()} className="px-10 py-4 bg-white border border-slate-200 font-black text-[10px] uppercase rounded-2xl shadow-sm hover:bg-slate-50">Import Plan</button>
+                            <button onClick={() => fileInputRef.current.click()} className="px-10 py-4 bg-indigo-600 text-white font-black text-[10px] uppercase rounded-2xl shadow-lg">Import Data</button>
                             <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={(e) => {
-                                if (!e.target.files[0]) return;
                                 const reader = new FileReader();
                                 reader.onload = (ev) => {
                                     const d = JSON.parse(ev.target.result);
                                     setBills(d.bills || []); setIncomes(d.incomes || []); setOverrides(d.overrides || {});
                                 };
-                                reader.readAsText(e.target.files[0]);
-                                e.target.value = null;
+                                if (e.target.files[0]) reader.readAsText(e.target.files[0]);
                             }} />
                         </div>
                     </div>
@@ -282,25 +354,19 @@
                     {/* Modal */}
                     {showModal && (
                         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
-                            <div className="bg-white p-10 rounded-[3rem] w-full max-w-sm shadow-2xl">
-                                <h2 className="text-xl font-black mb-6 uppercase tracking-tighter">{showModal === 'edit' ? 'Edit Entry' : `New ${showModal}`}</h2>
+                            <div className="bg-white p-10 rounded-[3rem] w-full max-w-sm">
+                                <h2 className="text-2xl font-black mb-6 uppercase tracking-tighter">Entry</h2>
                                 <div className="space-y-4">
-                                    <input value={form.name} placeholder="Name" className="w-full p-4 bg-slate-50 rounded-2xl border-0 font-bold focus:ring-2 ring-indigo-500 outline-none" onChange={e => setForm({ ...form, name: e.target.value })} />
-                                    <input value={form.amount} type="number" placeholder="Amount" className="w-full p-4 bg-slate-50 rounded-2xl border-0 font-bold focus:ring-2 ring-indigo-500 outline-none" onChange={e => setForm({ ...form, amount: e.target.value })} />
+                                    <input value={form.name} placeholder="Name" className="w-full p-4 bg-slate-50 rounded-2xl border-0 font-bold" onChange={e => setForm({ ...form, name: e.target.value })} />
+                                    <input value={form.amount} type="number" placeholder="0.00" className="w-full p-4 bg-slate-50 rounded-2xl border-0 font-bold" onChange={e => setForm({ ...form, amount: e.target.value })} />
                                     <input value={form.date} type="date" className="w-full p-4 bg-slate-50 rounded-2xl border-0 font-bold text-xs" onChange={e => setForm({ ...form, date: e.target.value })} />
                                     <select value={form.freq} className="w-full p-4 bg-slate-50 rounded-2xl border-0 font-bold text-xs uppercase" onChange={e => setForm({ ...form, freq: e.target.value })}>
                                         <option value="monthly">Monthly</option>
                                         <option value="biweekly">Bi-Weekly</option>
                                         <option value="weekly">Weekly</option>
-                                        <option value="once">One-Time</option>
+                                        <option value="once">Once</option>
                                     </select>
-                                    {(showModal === 'bill' || (showModal === 'edit' && editCtx?.type === 'bill')) && (
-                                        <select value={form.category} className="w-full p-4 bg-slate-50 rounded-2xl border-0 font-bold text-xs uppercase" onChange={e => setForm({ ...form, category: e.target.value })}>
-                                            {BILL_CATEGORIES.map(cat => <option key={cat.label} value={cat.label}>{cat.label}</option>)}
-                                        </select>
-                                    )}
-                                    <button className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-indigo-200" onClick={() => {
-                                        if (!form.name || !form.amount) return;
+                                    <button className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg" onClick={() => {
                                         if (showModal === 'edit') {
                                             const updater = (list) => list.map(i => i.id === editCtx.item.id ? { ...i, ...form } : i);
                                             if (editCtx.type === 'income') setIncomes(updater(incomes)); else setBills(updater(bills));
