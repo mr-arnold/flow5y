@@ -4,24 +4,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flow5Y | Paycheck + Calendar Master</title>
+    <title>Flow5Y | Precise Finance</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap"
         rel="stylesheet">
+    <script>tailwind.config = { darkMode: 'class' }</script>
     <style>
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
-            background: #f8fafc;
-            color: #1e293b;
         }
 
-        .glass {
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 2rem;
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
         }
 
         .tab-active {
@@ -36,124 +33,69 @@
             font-weight: 800;
         }
 
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-
-        /* Calendar Styling */
         .calendar-grid {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
             gap: 1px;
             background: #e2e8f0;
-            border: 1px solid #e2e8f0;
-            border-radius: 1.5rem;
+            border-radius: 1rem;
             overflow: hidden;
+        }
+
+        .dark .calendar-grid {
+            background: #334155;
         }
 
         .calendar-day {
             background: white;
             min-height: 110px;
-            padding: 0.75rem;
-            transition: background 0.2s;
-            position: relative;
+            padding: 0.5rem;
         }
 
-        .calendar-day:hover {
-            background: #f1f5f9;
-        }
-
-        .action-btn {
-            width: 28px;
-            height: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 8px;
-            transition: all 0.2s;
-            color: #94a3b8;
-            font-size: 14px;
-            border: 1px solid transparent;
-        }
-
-        .action-btn:hover {
-            background: #f1f5f9;
-            color: #4f46e5;
-            border-color: #e2e8f0;
-        }
-
-        .delete-btn:hover {
-            color: #ef4444;
-            background: #fef2f2;
-        }
-
-        .toggle-pill {
-            background: #f1f5f9;
-            padding: 4px;
-            border-radius: 1rem;
-            display: flex;
-            gap: 4px;
-        }
-
-        .toggle-btn {
-            padding: 6px 16px;
-            border-radius: 0.75rem;
-            font-size: 10px;
-            font-weight: 800;
-            text-transform: uppercase;
-            transition: all 0.2s;
-        }
-
-        .toggle-btn.active {
-            background: white;
-            color: #4f46e5;
-            shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        .dark .calendar-day {
+            background: #1e293b;
         }
     </style>
 </head>
 
-<body>
+<body class="bg-[#f8fafc] text-[#1e293b] dark:bg-[#0f172a] dark:text-[#f1f5f9]">
     <div id="root"></div>
-
     <script type="text/babel">
         const { useState, useMemo, useRef } = React;
-
-        const BILL_CATEGORIES = [
-            { label: 'Housing', color: 'bg-orange-100 text-orange-600' },
-            { label: 'Savings', color: 'bg-emerald-100 text-emerald-600' },
-            { label: 'Donations', color: 'bg-pink-100 text-pink-600' },
-            { label: 'Utilities', color: 'bg-blue-100 text-blue-600' },
-            { label: 'Transportation', color: 'bg-purple-100 text-purple-600' },
-            { label: 'Food', color: 'bg-amber-100 text-amber-600' },
-            { label: 'Subscriptions', color: 'bg-rose-100 text-rose-600' },
-            { label: 'Debt/Loans', color: 'bg-slate-100 text-slate-600' },
-            { label: 'Misc', color: 'bg-indigo-100 text-indigo-600' }
-        ];
+        const BILL_CATEGORIES = ['Housing', 'Utilities', 'Food', 'Transport', 'Savings', 'Debt', 'Other'];
 
         function App() {
+            const [isDark, setIsDark] = useState(false);
             const [bills, setBills] = useState([]);
             const [incomes, setIncomes] = useState([]);
             const [overrides, setOverrides] = useState({});
             const [activeYear, setActiveYear] = useState("2026");
             const [activeMonth, setActiveMonth] = useState("January");
-            const [viewMode, setViewMode] = useState('paycheck'); // 'paycheck' or 'calendar'
+            const [viewMode, setViewMode] = useState('paycheck');
             const [showModal, setShowModal] = useState(null);
             const [editCtx, setEditCtx] = useState(null);
-            const [form, setForm] = useState({ name: '', amount: '', date: '', freq: 'monthly', category: 'Housing' });
+            const [form, setForm] = useState({ name: '', amount: '', date: '', endDate: '', freq: 'monthly', category: 'Housing' });
             const fileInputRef = useRef(null);
+
+            const years = ["2026", "2027", "2028", "2029", "2030"];
+            const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
             const generateInstances = (items, start, end) => {
                 let list = [];
                 items.forEach(item => {
                     let curr = new Date(item.date + 'T12:00:00');
+                    const stopDate = item.endDate ? new Date(item.endDate + 'T23:59:59') : new Date('2031-01-01');
                     let count = 0;
-                    while (curr <= end && count < 600) {
+                    while (curr <= end && curr <= stopDate && count < 500) {
                         const dateStr = curr.toISOString().split('T')[0];
                         const key = `${item.id}-${dateStr}`;
                         const ovr = overrides[key];
-                        const actualDate = new Date((ovr?.date || dateStr) + 'T12:00:00');
-                        if (actualDate >= start) {
-                            list.push({ ...item, origDateStr: dateStr, actualDate, amount: ovr?.amount || item.amount });
+                        if (!ovr?.deleted) {
+                            const actualDateStr = ovr?.date || dateStr;
+                            const actualDate = new Date(actualDateStr + 'T12:00:00');
+                            if (actualDate >= start && actualDate <= end) {
+                                list.push({ ...item, origDateStr: dateStr, actualDate, amount: ovr?.amount || item.amount });
+                            }
                         }
                         if (item.freq === 'weekly') curr.setDate(curr.getDate() + 7);
                         else if (item.freq === 'biweekly') curr.setDate(curr.getDate() + 14);
@@ -166,225 +108,228 @@
             };
 
             const processed = useMemo(() => {
-                const monthIdx = new Date(Date.parse(activeMonth + " 1, " + activeYear)).getMonth();
+                const monthIdx = months.indexOf(activeMonth);
                 const mStart = new Date(activeYear, monthIdx, 1);
                 const mEnd = new Date(activeYear, monthIdx + 1, 0, 23, 59, 59);
-                const rangeStart = new Date(activeYear, monthIdx - 1, 1);
-                const rangeEnd = new Date(activeYear, monthIdx + 2, 1);
+                const lookback = new Date(mStart); lookback.setDate(lookback.getDate() - 31);
 
-                const allInc = generateInstances(incomes, rangeStart, rangeEnd).sort((a, b) => a.actualDate - b.actualDate);
-                const allBills = generateInstances(bills, rangeStart, rangeEnd);
-                const monthIncomes = allInc.filter(i => i.actualDate >= mStart && i.actualDate <= mEnd);
+                const allIncs = generateInstances(incomes, lookback, mEnd).sort((a, b) => a.actualDate - b.actualDate);
+                const allBills = generateInstances(bills, mStart, mEnd).sort((a, b) => a.actualDate - b.actualDate);
 
-                let tInc = 0, tBill = 0, tSave = 0;
-                const cards = monthIncomes.map(inc => {
-                    tInc += parseFloat(inc.amount || 0);
-                    const masterIdx = allInc.findIndex(i => i.id === inc.id && i.origDateStr === inc.origDateStr);
-                    const nextInc = allInc[masterIdx + 1];
-                    const attached = allBills.filter(b => b.actualDate >= inc.actualDate && (!nextInc || b.actualDate < nextInc.actualDate)).sort((a, b) => a.actualDate - b.actualDate);
-                    const billSum = attached.reduce((s, b) => {
-                        const a = parseFloat(b.amount || 0);
-                        if (b.category === 'Savings') tSave += a; else tBill += a;
-                        return s + a;
-                    }, 0);
-                    return { income: inc, bills: attached, billSum, remaining: parseFloat(inc.amount || 0) - billSum };
-                });
+                const groupedIncomes = allIncs.reduce((acc, inc) => {
+                    const dateKey = inc.actualDate.toISOString().split('T')[0];
+                    if (!acc[dateKey]) acc[dateKey] = { date: inc.actualDate, totalAmount: 0, items: [] };
+                    acc[dateKey].totalAmount += parseFloat(inc.amount || 0);
+                    acc[dateKey].items.push(inc);
+                    return acc;
+                }, {});
 
-                // Calendar
-                const firstDayOfMonth = new Date(activeYear, monthIdx, 1).getDay();
+                const sortedPaydays = Object.values(groupedIncomes).sort((a, b) => a.date - b.date);
+
+                const cards = sortedPaydays.map((payday, idx) => {
+                    const nextPayday = sortedPaydays[idx + 1];
+                    const attached = allBills.filter(b => b.actualDate >= payday.date && (!nextPayday || b.actualDate < nextPayday.date));
+                    const billSum = attached.reduce((s, b) => s + parseFloat(b.amount || 0), 0);
+                    return { incomeGroup: payday, bills: attached, billSum, remaining: payday.totalAmount - billSum };
+                }).filter(card => card.incomeGroup.date >= mStart && card.incomeGroup.date <= mEnd);
+
+                const firstDay = new Date(activeYear, monthIdx, 1).getDay();
                 const daysInMonth = new Date(activeYear, monthIdx + 1, 0).getDate();
-                const calDays = [];
-                for (let i = 0; i < firstDayOfMonth; i++) calDays.push(null);
-                for (let i = 1; i <= daysInMonth; i++) calDays.push(i);
+                const calGrid = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
 
-                return { cards, tInc, tBill, tSave, calDays, allInc, allBills, monthIdx };
+                return { cards, allIncs, allBills, calGrid, monthIdx };
             }, [bills, incomes, activeYear, activeMonth, overrides]);
 
-            const moveDate = (item, direction) => {
-                const current = new Date(item.actualDate);
-                const day = current.getDay();
-                let diff = direction === 'friday' ? (day >= 5 ? -(day - 5) : -(day + 2)) : (day >= 1 ? (8 - day) : (1 - day));
-                const newDate = new Date(current);
-                newDate.setDate(current.getDate() + diff);
-                setOverrides({ ...overrides, [`${item.id}-${item.origDateStr}`]: { ...item, date: newDate.toISOString().split('T')[0] } });
+            const handleAction = (type, scope) => {
+                const key = `${editCtx.item.id}-${editCtx.item.origDateStr}`;
+                if (type === 'save') {
+                    if (scope === 'individual') setOverrides({ ...overrides, [key]: { ...form } });
+                    else {
+                        const update = (list) => list.map(i => i.id === editCtx.item.id ? { ...i, ...form } : i);
+                        editCtx.type === 'income' ? setIncomes(update(incomes)) : setBills(update(bills));
+                    }
+                } else {
+                    if (scope === 'individual') setOverrides({ ...overrides, [key]: { deleted: true } });
+                    else {
+                        editCtx.type === 'income' ? setIncomes(incomes.filter(i => i.id !== editCtx.item.id)) : setBills(bills.filter(b => b.id !== editCtx.item.id));
+                    }
+                }
+                setShowModal(null);
             };
 
             return (
-                <div className="max-w-7xl mx-auto p-4 md:p-12">
-                    <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
-                        <div>
-                            <h1 className="text-4xl font-black italic uppercase leading-none tracking-tighter">Flow<span className="text-indigo-600">5Y</span></h1>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Planning: {activeMonth} {activeYear}</p>
-                        </div>
-
-                        <div className="flex flex-wrap gap-3">
-                            <div className="toggle-pill">
-                                <button onClick={() => setViewMode('paycheck')} className={`toggle-btn ${viewMode === 'paycheck' ? 'active' : ''}`}>List</button>
-                                <button onClick={() => setViewMode('calendar')} className={`toggle-btn ${viewMode === 'calendar' ? 'active' : ''}`}>Calendar</button>
+                <div className={isDark ? 'dark' : ''}>
+                    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#0f172a] p-6 transition-colors">
+                        <header className="max-w-7xl mx-auto flex justify-between items-center mb-10">
+                            <h1 className="text-3xl font-black tracking-tighter uppercase italic">Flow<span className="text-indigo-600">5Y</span></h1>
+                            <div className="flex gap-3">
+                                <button onClick={() => setIsDark(!isDark)} className="p-3 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm">{isDark ? '☀️' : '🌙'}</button>
+                                <button onClick={() => fileInputRef.current.click()} className="px-5 py-2 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl font-bold text-xs uppercase tracking-widest">Import</button>
+                                <button onClick={() => {
+                                    const blob = new Blob([JSON.stringify({ bills, incomes, overrides })], { type: 'application/json' });
+                                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `flow5y_save.json`; a.click();
+                                }} className="px-5 py-2 bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest">Export</button>
+                                <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => {
+                                    const reader = new FileReader();
+                                    reader.onload = (ev) => {
+                                        const d = JSON.parse(ev.target.result);
+                                        setBills(d.bills || []); setIncomes(d.incomes || []); setOverrides(d.overrides || {});
+                                    };
+                                    if (e.target.files[0]) reader.readAsText(e.target.files[0]);
+                                }} />
                             </div>
-                            <button onClick={() => { setForm({ name: '', amount: '', date: '', freq: 'biweekly' }); setShowModal('income'); }} className="bg-white border font-black uppercase px-6 py-3 rounded-2xl text-[10px] hover:bg-slate-50">+ Paycheck</button>
-                            <button onClick={() => { setForm({ name: '', amount: '', date: '', freq: 'monthly', category: 'Housing' }); setShowModal('bill'); }} className="bg-slate-900 text-white font-black uppercase px-6 py-3 rounded-2xl text-[10px] shadow-lg">+ Bill</button>
-                        </div>
-                    </header>
+                        </header>
 
-                    {/* MONTHLY OVERVIEW CARDS */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                        <div className="glass p-8 border-l-4 border-emerald-500 shadow-sm">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Monthly Cash-In</p>
-                            <h3 className="text-4xl font-black text-slate-800">${processed.tInc.toFixed(2)}</h3>
-                        </div>
-                        <div className="glass p-8 border-l-4 border-rose-500 shadow-sm">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Monthly Bills</p>
-                            <h3 className="text-4xl font-black text-slate-800">${processed.tBill.toFixed(2)}</h3>
-                        </div>
-                        <div className="glass p-8 border-l-4 border-indigo-500 shadow-sm">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Monthly Savings</p>
-                            <h3 className="text-4xl font-black text-slate-800">${processed.tSave.toFixed(2)}</h3>
-                        </div>
-                    </div>
+                        <div className="max-w-7xl mx-auto">
+                            <div className="flex gap-2 mb-4 overflow-x-auto no-scrollbar">
+                                {years.map(y => (
+                                    <button key={y} onClick={() => setActiveYear(y)} className={`px-8 py-3 rounded-xl font-black shrink-0 ${activeYear === y ? 'tab-active' : 'bg-white dark:bg-slate-800 text-slate-400'}`}>{y}</button>
+                                ))}
+                            </div>
+                            <div className="flex gap-5 mb-8 overflow-x-auto no-scrollbar border-b dark:border-slate-800">
+                                {months.map(m => (
+                                    <button key={m} onClick={() => setActiveMonth(m)} className={`pb-4 px-1 text-[10px] font-black uppercase shrink-0 ${activeMonth === m ? 'subtab-active' : 'text-slate-300 border-transparent'}`}>{m}</button>
+                                ))}
+                            </div>
 
-                    {/* YEAR & MONTH NAV */}
-                    <div className="flex gap-2 mb-6 overflow-x-auto no-scrollbar">
-                        {["2026", "2027", "2028", "2029", "2030"].map(y => (
-                            <button key={y} onClick={() => setActiveYear(y)} className={`px-10 py-3 rounded-2xl font-black shrink-0 transition-all ${activeYear === y ? 'tab-active' : 'bg-white text-slate-400'}`}>{y}</button>
-                        ))}
-                    </div>
+                            <div className="flex gap-4 mb-10">
+                                <button onClick={() => { setForm({ name: '', amount: '', date: '', endDate: '', freq: 'biweekly' }); setShowModal('income'); }} className="flex-1 py-4 bg-indigo-50 dark:bg-slate-800 border-2 border-dashed border-indigo-200 dark:border-slate-700 rounded-2xl font-black text-xs uppercase text-indigo-400">+ Income Stream</button>
+                                <button onClick={() => { setForm({ name: '', amount: '', date: '', endDate: '', freq: 'monthly', category: 'Housing' }); setShowModal('bill'); }} className="flex-1 py-4 bg-rose-50 dark:bg-slate-800 border-2 border-dashed border-rose-100 dark:border-slate-700 rounded-2xl font-black text-xs uppercase text-rose-300">+ Recurring Bill</button>
+                            </div>
 
-                    <div className="flex gap-6 mb-10 overflow-x-auto no-scrollbar border-b">
-                        {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map(m => (
-                            <button key={m} onClick={() => setActiveMonth(m)} className={`pb-4 px-1 text-[11px] font-black uppercase shrink-0 transition-all ${activeMonth === m ? 'subtab-active text-indigo-600 border-indigo-600' : 'text-slate-300 border-transparent'}`}>{m}</button>
-                        ))}
-                    </div>
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-xl font-black uppercase tracking-tighter">{activeMonth} {activeYear}</h3>
+                                <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex text-[10px] font-black uppercase">
+                                    <button onClick={() => setViewMode('paycheck')} className={`px-4 py-2 rounded-lg ${viewMode === 'paycheck' ? 'bg-white dark:bg-slate-700' : 'text-slate-400'}`}>List View</button>
+                                    <button onClick={() => setViewMode('calendar')} className={`px-4 py-2 rounded-lg ${viewMode === 'calendar' ? 'bg-white dark:bg-slate-700' : 'text-slate-400'}`}>Calendar View</button>
+                                </div>
+                            </div>
 
-                    {/* VIEWS */}
-                    {viewMode === 'paycheck' ? (
-                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {processed.cards.length === 0 && <div className="col-span-full text-center py-20 bg-slate-50 rounded-[3rem] border-2 border-dashed text-slate-400 font-bold uppercase text-xs">No data for this month. Import a file below.</div>}
-                            {processed.cards.map((card, i) => (
-                                <div key={i} className="glass p-8 flex flex-col border-t-8 border-indigo-500 shadow-xl">
-                                    <div className="mb-6 flex justify-between items-start">
-                                        <div>
-                                            <h4 className="text-2xl font-black text-slate-800">{card.income.actualDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</h4>
-                                            <p className="text-[11px] font-bold text-slate-400 uppercase">{card.income.name} (${parseFloat(card.income.amount).toFixed(2)})</p>
-                                        </div>
-                                        <div className="flex gap-0.5 bg-slate-50 p-1 rounded-xl">
-                                            <button title="Shift to Friday" onClick={() => moveDate(card.income, 'friday')} className="action-btn">←</button>
-                                            <button title="Shift to Monday" onClick={() => moveDate(card.income, 'monday')} className="action-btn">→</button>
-                                            <button onClick={() => { setEditCtx({ item: card.income, type: 'income' }); setForm({ ...card.income, date: card.income.actualDate.toISOString().split('T')[0] }); setShowModal('edit'); }} className="action-btn">✎</button>
-                                        </div>
-                                    </div>
-                                    <div className="flex-1 space-y-4 mb-8 min-h-[100px]">
-                                        {card.bills.map((b, bi) => (
-                                            <div key={bi} className="flex justify-between items-center group">
-                                                <div>
-                                                    <p className="text-[11px] font-black text-slate-700 uppercase">{b.name}</p>
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase">{b.actualDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                            {viewMode === 'paycheck' ? (
+                                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {processed.cards.map((card, idx) => (
+                                        <div key={idx} className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border dark:border-slate-700">
+                                            <div className="mb-6 border-b dark:border-slate-700 pb-4">
+                                                <p className="text-xl font-black">{card.incomeGroup.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                                                <div className="mt-2 space-y-1">
+                                                    {card.incomeGroup.items.map((inc, ii) => (
+                                                        <div key={ii} className="flex justify-between items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 p-1 rounded"
+                                                            onClick={() => { setEditCtx({ item: inc, type: 'income' }); setForm({ ...inc, date: inc.actualDate.toISOString().split('T')[0] }); setShowModal('edit'); }}>
+                                                            <span className="text-[10px] font-black text-indigo-500 uppercase">{inc.name}</span>
+                                                            <span className="text-emerald-500 font-black text-xs">+${inc.amount}</span>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`text-[11px] font-black ${b.category === 'Savings' ? 'text-emerald-500' : 'text-rose-500'}`}>-${parseFloat(b.amount).toFixed(2)}</span>
-                                                    <div className="flex opacity-0 group-hover:opacity-100 transition-opacity bg-white border rounded-lg">
-                                                        <button onClick={() => moveDate(b, 'friday')} className="action-btn scale-75">←</button>
-                                                        <button onClick={() => moveDate(b, 'monday')} className="action-btn scale-75">→</button>
-                                                        <button onClick={() => { setEditCtx({ item: b, type: 'bill' }); setForm({ ...b, date: b.actualDate.toISOString().split('T')[0] }); setShowModal('edit'); }} className="action-btn scale-75">✎</button>
-                                                        <button onClick={() => setBills(bills.filter(bi => bi.id !== b.id))} className="action-btn delete-btn scale-75">×</button>
+                                            </div>
+                                            <div className="space-y-3 min-h-[100px]">
+                                                {card.bills.map((b, bi) => (
+                                                    <div key={bi} onClick={() => { setEditCtx({ item: b, type: 'bill' }); setForm({ ...b, date: b.actualDate.toISOString().split('T')[0] }); setShowModal('edit'); }} className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl cursor-pointer hover:ring-1 ring-indigo-500">
+                                                        <div className="text-[11px] font-bold">
+                                                            <p className="uppercase">{b.name}</p>
+                                                            <p className="text-slate-400 text-[9px] uppercase">{b.actualDate.getDate()}th • {b.category}</p>
+                                                        </div>
+                                                        <p className="text-rose-500 font-black text-xs">-${b.amount}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="mt-6 pt-4 border-t dark:border-slate-700 flex justify-between items-center">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase">Remaining</p>
+                                                <p className="text-2xl font-black">${card.remaining.toFixed(2)}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border dark:border-slate-700 overflow-hidden">
+                                    <div className="grid grid-cols-7 mb-4 text-center text-[10px] font-black text-slate-400 uppercase">
+                                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d}>{d}</div>)}
+                                    </div>
+                                    <div className="calendar-grid">
+                                        {processed.calGrid.map((day, i) => {
+                                            if (!day) return <div key={i} className="calendar-day bg-slate-50/50 dark:bg-slate-900/30"></div>;
+                                            const ds = `${activeYear}-${(processed.monthIdx + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                                            const dayIncs = processed.allIncs.filter(x => x.actualDate.toISOString().split('T')[0] === ds);
+                                            const dayBills = processed.allBills.filter(x => x.actualDate.toISOString().split('T')[0] === ds);
+                                            return (
+                                                <div key={i} className="calendar-day border dark:border-slate-700">
+                                                    <span className="text-[10px] font-black opacity-30">{day}</span>
+                                                    <div className="mt-1 space-y-1">
+                                                        {dayIncs.map((x, xi) => <div key={xi} className="bg-indigo-600 text-white text-[7px] p-1 rounded font-black uppercase truncate">Pay: {x.amount}</div>)}
+                                                        {dayBills.map((x, xi) => <div key={xi} className="bg-rose-500 text-white text-[7px] p-1 rounded font-black uppercase truncate">{x.name}</div>)}
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className="pt-6 border-t flex justify-between items-end">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cycle Balance</p>
-                                        <p className={`text-3xl font-black ${card.remaining >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>${card.remaining.toFixed(2)}</p>
+                                            );
+                                        })}
                                     </div>
                                 </div>
-                            ))}
+                            )}
                         </div>
-                    ) : (
-                        <div className="glass p-4 md:p-8 shadow-2xl overflow-hidden">
-                            <div className="grid grid-cols-7 mb-4">
-                                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d} className="text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">{d}</div>)}
-                            </div>
-                            <div className="calendar-grid">
-                                {processed.calDays.map((day, i) => {
-                                    if (!day) return <div key={i} className="calendar-day bg-slate-50/50"></div>;
-                                    const dateStr = `${activeYear}-${(processed.monthIdx + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-                                    const dayIncs = processed.allInc.filter(inc => inc.actualDate.toISOString().split('T')[0] === dateStr);
-                                    const dayBills = processed.allBills.filter(b => b.actualDate.toISOString().split('T')[0] === dateStr);
 
-                                    return (
-                                        <div key={i} className="calendar-day">
-                                            <span className="text-[10px] font-black text-slate-300">{day}</span>
-                                            <div className="mt-1 space-y-1">
-                                                {dayIncs.map((inc, ii) => (
-                                                    <div key={ii} className="bg-emerald-500 text-white text-[8px] p-1 rounded font-black truncate">IN: ${parseFloat(inc.amount).toFixed(0)}</div>
-                                                ))}
-                                                {dayBills.map((b, bi) => (
-                                                    <div key={bi} className={`${b.category === 'Savings' ? 'bg-indigo-500' : 'bg-rose-500'} text-white text-[8px] p-1 rounded font-black truncate`}>{b.name.substring(0, 8)}</div>
-                                                ))}
+                        {showModal && (
+                            <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl">
+                                    <h2 className="text-2xl font-black mb-6 uppercase tracking-tighter italic">{showModal === 'edit' ? 'Update Entry' : `New ${showModal}`}</h2>
+                                    <div className="space-y-4">
+                                        <input value={form.name} placeholder="Name" className="w-full p-4 bg-slate-100 dark:bg-slate-700 rounded-2xl font-bold dark:text-white outline-none" onChange={e => setForm({ ...form, name: e.target.value })} />
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <input value={form.amount} placeholder="Amount" type="number" className="p-4 bg-slate-100 dark:bg-slate-700 rounded-2xl font-bold dark:text-white outline-none" onChange={e => setForm({ ...form, amount: e.target.value })} />
+                                            <div className="flex flex-col">
+                                                <label className="text-[8px] font-black uppercase text-slate-400 ml-2">Date</label>
+                                                <input value={form.date} type="date" className="p-3 bg-slate-100 dark:bg-slate-700 rounded-2xl font-bold text-xs dark:text-white outline-none" onChange={e => setForm({ ...form, date: e.target.value })} />
                                             </div>
                                         </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* IMPORT / EXPORT */}
-                    <div className="mt-20 flex flex-col items-center gap-6 py-10 border-t border-slate-200">
-                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em]">Data Safe (Session Only)</p>
-                        <div className="flex gap-4">
-                            <button onClick={() => {
-                                const blob = new Blob([JSON.stringify({ bills, incomes, overrides })], { type: 'application/json' });
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement('a'); a.href = url; a.download = `flow5y_${activeYear}.json`; a.click();
-                            }} className="px-10 py-4 bg-white border-2 border-slate-100 font-black text-[10px] uppercase rounded-2xl hover:bg-slate-50">Export Data</button>
-
-                            <button onClick={() => fileInputRef.current.click()} className="px-10 py-4 bg-indigo-600 text-white font-black text-[10px] uppercase rounded-2xl shadow-lg">Import Data</button>
-                            <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={(e) => {
-                                const reader = new FileReader();
-                                reader.onload = (ev) => {
-                                    const d = JSON.parse(ev.target.result);
-                                    setBills(d.bills || []); setIncomes(d.incomes || []); setOverrides(d.overrides || {});
-                                };
-                                if (e.target.files[0]) reader.readAsText(e.target.files[0]);
-                            }} />
-                        </div>
-                    </div>
-
-                    {/* Modal */}
-                    {showModal && (
-                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
-                            <div className="bg-white p-10 rounded-[3rem] w-full max-w-sm">
-                                <h2 className="text-2xl font-black mb-6 uppercase tracking-tighter">Entry</h2>
-                                <div className="space-y-4">
-                                    <input value={form.name} placeholder="Name" className="w-full p-4 bg-slate-50 rounded-2xl border-0 font-bold" onChange={e => setForm({ ...form, name: e.target.value })} />
-                                    <input value={form.amount} type="number" placeholder="0.00" className="w-full p-4 bg-slate-50 rounded-2xl border-0 font-bold" onChange={e => setForm({ ...form, amount: e.target.value })} />
-                                    <input value={form.date} type="date" className="w-full p-4 bg-slate-50 rounded-2xl border-0 font-bold text-xs" onChange={e => setForm({ ...form, date: e.target.value })} />
-                                    <select value={form.freq} className="w-full p-4 bg-slate-50 rounded-2xl border-0 font-bold text-xs uppercase" onChange={e => setForm({ ...form, freq: e.target.value })}>
-                                        <option value="monthly">Monthly</option>
-                                        <option value="biweekly">Bi-Weekly</option>
-                                        <option value="weekly">Weekly</option>
-                                        <option value="once">Once</option>
-                                    </select>
-                                    <button className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg" onClick={() => {
-                                        if (showModal === 'edit') {
-                                            const updater = (list) => list.map(i => i.id === editCtx.item.id ? { ...i, ...form } : i);
-                                            if (editCtx.type === 'income') setIncomes(updater(incomes)); else setBills(updater(bills));
-                                        } else {
-                                            const item = { ...form, id: Date.now() };
-                                            if (showModal === 'bill') setBills([...bills, item]); else setIncomes([...incomes, item]);
-                                        }
-                                        setShowModal(null);
-                                    }}>Save</button>
-                                    <button onClick={() => setShowModal(null)} className="w-full text-[10px] font-black text-slate-300 uppercase mt-2">Cancel</button>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="flex flex-col">
+                                                <label className="text-[8px] font-black uppercase text-slate-400 ml-2">End Date (Optional)</label>
+                                                <input value={form.endDate} type="date" className="p-3 bg-slate-100 dark:bg-slate-700 rounded-2xl font-bold text-xs dark:text-white outline-none" onChange={e => setForm({ ...form, endDate: e.target.value })} />
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <label className="text-[8px] font-black uppercase text-slate-400 ml-2">{showModal === 'income' ? 'Freq' : 'Category'}</label>
+                                                {showModal === 'income' || (showModal === 'edit' && editCtx.type === 'income') ? (
+                                                    <select value={form.freq} className="p-3 bg-slate-100 dark:bg-slate-700 rounded-2xl font-bold text-[10px] uppercase dark:text-white outline-none" onChange={e => setForm({ ...form, freq: e.target.value })}>
+                                                        <option value="weekly">Weekly</option><option value="biweekly">Bi-Weekly</option><option value="monthly">Monthly</option><option value="once">Once</option>
+                                                    </select>
+                                                ) : (
+                                                    <select value={form.category} className="p-3 bg-slate-100 dark:bg-slate-700 rounded-2xl font-bold text-[10px] uppercase dark:text-white outline-none" onChange={e => setForm({ ...form, category: e.target.value })}>
+                                                        {BILL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                                    </select>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {(showModal === 'bill' || (showModal === 'edit' && editCtx.type === 'bill')) && (
+                                            <select value={form.freq} className="w-full p-4 bg-slate-100 dark:bg-slate-700 rounded-2xl font-bold text-[10px] uppercase dark:text-white outline-none" onChange={e => setForm({ ...form, freq: e.target.value })}>
+                                                <option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="biweekly">Bi-Weekly</option><option value="once">Once</option>
+                                            </select>
+                                        )}
+                                        <div className="space-y-3 pt-4">
+                                            {showModal === 'edit' ? (
+                                                <>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <button onClick={() => handleAction('save', 'individual')} className="bg-indigo-100 text-indigo-600 p-4 rounded-xl font-black text-[10px] uppercase">This Date Only</button>
+                                                        <button onClick={() => handleAction('save', 'series')} className="bg-indigo-600 text-white p-4 rounded-xl font-black text-[10px] uppercase">Entire Series</button>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <button onClick={() => handleAction('delete', 'individual')} className="bg-rose-100 text-rose-600 p-4 rounded-xl font-black text-[10px] uppercase">Delete This</button>
+                                                        <button onClick={() => handleAction('delete', 'series')} className="bg-rose-600 text-white p-4 rounded-xl font-black text-[10px] uppercase">Delete Series</button>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <button className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase" onClick={() => {
+                                                    const item = { ...form, id: Date.now() };
+                                                    showModal === 'bill' ? setBills([...bills, item]) : setIncomes([...incomes, item]);
+                                                    setShowModal(null);
+                                                }}>Add to Schedule</button>
+                                            )}
+                                            <button onClick={() => setShowModal(null)} className="w-full py-2 text-[10px] font-black text-slate-400 uppercase">Cancel</button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
             );
         }
-
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
