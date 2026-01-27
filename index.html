@@ -62,19 +62,151 @@
     <div id="root"></div>
     <script type="text/babel">
         const { useState, useMemo, useRef } = React;
-        const BILL_CATEGORIES = ['Housing', 'Utilities', 'Food', 'Transport', 'Savings', 'Debt', 'Other'];
+        const BILL_CATEGORIES = ['Housing', 'Utilities', 'Food', 'Transport', 'Childcare', 'Savings', 'Debt', 'Other'];
+        
+        const CATEGORY_COLORS = {
+            'Housing': '#8b5cf6',
+            'Utilities': '#06b6d4',
+            'Food': '#f59e0b',
+            'Transport': '#10b981',
+            'Childcare': '#ec4899',
+            'Savings': '#3b82f6',
+            'Debt': '#ef4444',
+            'Other': '#6b7280'
+        };
+
+        function PieChart({ categories, totalIncome }) {
+            const [hoveredSegment, setHoveredSegment] = React.useState(null);
+            
+            if (!categories || Object.keys(categories).length === 0) {
+                return <div className="text-center text-slate-400 text-sm py-8">No spending data</div>;
+            }
+            
+            const total = Object.values(categories).reduce((sum, val) => sum + val, 0);
+            
+            if (total === 0) return <div className="text-center text-slate-400 text-sm py-8">No spending data</div>;
+            
+            let currentAngle = -90;
+            const segments = Object.entries(categories)
+                .filter(([_, val]) => val > 0)
+                .sort((a, b) => b[1] - a[1])
+                .map(([cat, val]) => {
+                    const percentage = (val / total) * 100;
+                    const angle = (percentage / 100) * 360;
+                    const startAngle = currentAngle;
+                    currentAngle += angle;
+                    return { cat, val, percentage, startAngle, angle };
+                });
+            
+            const radius = 80;
+            const centerX = 100;
+            const centerY = 100;
+            
+            return (
+                <div className="space-y-4">
+                    <div className="relative">
+                        <svg viewBox="0 0 200 200" className="w-full max-w-xs mx-auto">
+                            {segments.map((seg, idx) => {
+                                // Special case: if this is a full circle (100%), just draw a circle
+                                if (seg.percentage >= 99.9) {
+                                    return (
+                                        <circle
+                                            key={idx}
+                                            cx={centerX}
+                                            cy={centerY}
+                                            r={radius}
+                                            fill={CATEGORY_COLORS[seg.cat] || '#6b7280'}
+                                            className="cursor-pointer transition-opacity"
+                                            style={{ opacity: hoveredSegment === idx ? 0.8 : 1 }}
+                                            onMouseEnter={() => setHoveredSegment(idx)}
+                                            onMouseLeave={() => setHoveredSegment(null)}
+                                        />
+                                    );
+                                }
+                                
+                                const startAngle = (seg.startAngle * Math.PI) / 180;
+                                const endAngle = ((seg.startAngle + seg.angle) * Math.PI) / 180;
+                                const largeArc = seg.angle > 180 ? 1 : 0;
+                                
+                                const x1 = centerX + radius * Math.cos(startAngle);
+                                const y1 = centerY + radius * Math.sin(startAngle);
+                                const x2 = centerX + radius * Math.cos(endAngle);
+                                const y2 = centerY + radius * Math.sin(endAngle);
+                                
+                                return (
+                                    <path
+                                        key={idx}
+                                        d={`M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`}
+                                        fill={CATEGORY_COLORS[seg.cat] || '#6b7280'}
+                                        className="cursor-pointer transition-opacity"
+                                        style={{ opacity: hoveredSegment === idx ? 0.8 : 1 }}
+                                        onMouseEnter={() => setHoveredSegment(idx)}
+                                        onMouseLeave={() => setHoveredSegment(null)}
+                                    />
+                                );
+                            })}
+                            <circle cx={centerX} cy={centerY} r="50" fill="white" className="dark:fill-slate-800 pointer-events-none" />
+                            <text x={centerX} y={centerY - 10} textAnchor="middle" className="text-xs font-black fill-slate-400 pointer-events-none">
+                                ${total.toFixed(0)}
+                            </text>
+                            <text x={centerX} y={centerY + 10} textAnchor="middle" className="text-[10px] font-black fill-slate-400 pointer-events-none">
+                                SPENT
+                            </text>
+                        </svg>
+                        
+                        {hoveredSegment !== null && (
+                            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full mb-2 px-4 py-2 bg-slate-900 dark:bg-slate-700 text-white text-sm rounded-lg shadow-lg whitespace-nowrap z-20">
+                                <div className="font-black">{segments[hoveredSegment].cat}</div>
+                                <div className="text-xs">${segments[hoveredSegment].val.toFixed(2)}</div>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                        {segments.map((seg, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: CATEGORY_COLORS[seg.cat] || '#6b7280' }}></div>
+                                <div className="text-[10px] font-bold">
+                                    <div className="uppercase">{seg.cat}</div>
+                                    <div className="text-slate-400">${seg.val.toFixed(0)} ({seg.percentage.toFixed(1)}%)</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    
+                    {totalIncome > 0 && (
+                        <div className="pt-4 border-t dark:border-slate-700">
+                            <div className="flex justify-between text-[10px] font-black mb-2">
+                                <span className="text-slate-400 uppercase">Income Utilization</span>
+                                <span className={total > totalIncome ? 'text-rose-500' : 'text-emerald-500'}>
+                                    {((total / totalIncome) * 100).toFixed(1)}%
+                                </span>
+                            </div>
+                            <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                                <div 
+                                    className={`h-full rounded-full ${total > totalIncome ? 'bg-rose-500' : 'bg-emerald-500'}`}
+                                    style={{ width: `${Math.min((total / totalIncome) * 100, 100)}%` }}
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
 
         function App() {
             const [isDark, setIsDark] = useState(false);
             const [bills, setBills] = useState([]);
             const [incomes, setIncomes] = useState([]);
             const [overrides, setOverrides] = useState({});
+            const [viewTab, setViewTab] = useState('home');
             const [activeYear, setActiveYear] = useState("2026");
             const [activeMonth, setActiveMonth] = useState("January");
             const [viewMode, setViewMode] = useState('paycheck');
             const [showModal, setShowModal] = useState(null);
             const [editCtx, setEditCtx] = useState(null);
             const [form, setForm] = useState({ name: '', amount: '', date: '', endDate: '', freq: 'monthly', category: 'Housing' });
+            const [exportFilename, setExportFilename] = useState('');
             const fileInputRef = useRef(null);
 
             const years = ["2026", "2027", "2028", "2029", "2030"];
@@ -83,25 +215,102 @@
             const generateInstances = (items, start, end) => {
                 let list = [];
                 items.forEach(item => {
-                    let curr = new Date(item.date + 'T12:00:00');
+                    const startDate = new Date(item.date + 'T12:00:00');
                     const stopDate = item.endDate ? new Date(item.endDate + 'T23:59:59') : new Date('2031-01-01');
                     let count = 0;
-                    while (curr <= end && curr <= stopDate && count < 500) {
-                        const dateStr = curr.toISOString().split('T')[0];
-                        const key = `${item.id}-${dateStr}`;
+                    
+                    if (item.freq === 'once') {
+                        // For one-time items
+                        const key = `${item.id}-${item.date}`;
                         const ovr = overrides[key];
                         if (!ovr?.deleted) {
-                            const actualDateStr = ovr?.date || dateStr;
+                            const actualDateStr = ovr?.date || item.date;
                             const actualDate = new Date(actualDateStr + 'T12:00:00');
                             if (actualDate >= start && actualDate <= end) {
-                                list.push({ ...item, origDateStr: dateStr, actualDate, amount: ovr?.amount || item.amount });
+                                list.push({ 
+                                    ...item, 
+                                    origDateStr: item.date, 
+                                    actualDate, 
+                                    amount: ovr?.amount || item.amount,
+                                    category: ovr?.category || item.category
+                                });
                             }
                         }
-                        if (item.freq === 'weekly') curr.setDate(curr.getDate() + 7);
-                        else if (item.freq === 'biweekly') curr.setDate(curr.getDate() + 14);
-                        else if (item.freq === 'monthly') curr.setMonth(curr.getMonth() + 1);
-                        else break;
-                        count++;
+                    } else if (item.freq === 'monthly') {
+                        // For monthly items - generate on the same day of each month
+                        const originalDay = startDate.getDate();
+                        
+                        // Calculate how many months back we need to look
+                        let yearStart = startDate.getFullYear();
+                        let monthStart = startDate.getMonth();
+                        
+                        // Start generating from the original date
+                        let iterationYear = yearStart;
+                        let iterationMonth = monthStart;
+                        
+                        while (count < 500) {
+                            // Get the last day of the current iteration month
+                            const lastDayOfMonth = new Date(iterationYear, iterationMonth + 1, 0).getDate();
+                            const adjustedDay = Math.min(originalDay, lastDayOfMonth);
+                            
+                            const instanceDate = new Date(iterationYear, iterationMonth, adjustedDay, 12, 0, 0);
+                            
+                            // Check if this instance is beyond our boundaries
+                            if (instanceDate > stopDate || instanceDate > end) break;
+                            
+                            const dateStr = instanceDate.toISOString().split('T')[0];
+                            const key = `${item.id}-${dateStr}`;
+                            const ovr = overrides[key];
+                            
+                            if (!ovr?.deleted) {
+                                const actualDateStr = ovr?.date || dateStr;
+                                const actualDate = new Date(actualDateStr + 'T12:00:00');
+                                if (actualDate >= start && actualDate <= end) {
+                                    list.push({ 
+                                        ...item, 
+                                        origDateStr: dateStr, 
+                                        actualDate, 
+                                        amount: ovr?.amount || item.amount,
+                                        category: ovr?.category || item.category
+                                    });
+                                }
+                            }
+                            
+                            // Move to next month
+                            iterationMonth++;
+                            if (iterationMonth > 11) {
+                                iterationMonth = 0;
+                                iterationYear++;
+                            }
+                            count++;
+                        }
+                    } else {
+                        // For weekly/biweekly items
+                        let curr = new Date(startDate);
+                        
+                        while (curr <= end && curr <= stopDate && count < 500) {
+                            const dateStr = curr.toISOString().split('T')[0];
+                            const key = `${item.id}-${dateStr}`;
+                            const ovr = overrides[key];
+                            if (!ovr?.deleted) {
+                                const actualDateStr = ovr?.date || dateStr;
+                                const actualDate = new Date(actualDateStr + 'T12:00:00');
+                                if (actualDate >= start && actualDate <= end) {
+                                    list.push({ 
+                                        ...item, 
+                                        origDateStr: dateStr, 
+                                        actualDate, 
+                                        amount: ovr?.amount || item.amount,
+                                        category: ovr?.category || item.category
+                                    });
+                                }
+                            }
+                            
+                            if (item.freq === 'weekly') curr.setDate(curr.getDate() + 7);
+                            else if (item.freq === 'biweekly') curr.setDate(curr.getDate() + 14);
+                            
+                            count++;
+                        }
                     }
                 });
                 return list;
@@ -140,18 +349,120 @@
                 return { cards, allIncs, allBills, calGrid, monthIdx };
             }, [bills, incomes, activeYear, activeMonth, overrides]);
 
+            const dashboardData = useMemo(() => {
+                const yearlyData = {};
+                
+                years.forEach(year => {
+                    const monthlyData = {};
+                    let yearIncome = 0;
+                    let yearBills = 0;
+                    const yearCategories = {};
+                    
+                    months.forEach((month, monthIdx) => {
+                        const mStart = new Date(year, monthIdx, 1);
+                        const mEnd = new Date(year, monthIdx + 1, 0, 23, 59, 59);
+                        const lookback = new Date(mStart); lookback.setDate(lookback.getDate() - 31);
+                        
+                        const monthIncs = generateInstances(incomes, lookback, mEnd);
+                        const monthBills = generateInstances(bills, mStart, mEnd);
+                        
+                        const incomeTotal = monthIncs
+                            .filter(inc => inc.actualDate >= mStart && inc.actualDate <= mEnd)
+                            .reduce((sum, inc) => sum + parseFloat(inc.amount || 0), 0);
+                        
+                        const billsTotal = monthBills
+                            .filter(bill => bill.actualDate >= mStart && bill.actualDate <= mEnd)
+                            .reduce((sum, bill) => sum + parseFloat(bill.amount || 0), 0);
+                        
+                        const monthCategories = {};
+                        monthBills
+                            .filter(bill => bill.actualDate >= mStart && bill.actualDate <= mEnd)
+                            .forEach(bill => {
+                                const cat = bill.category || 'Other';
+                                monthCategories[cat] = (monthCategories[cat] || 0) + parseFloat(bill.amount || 0);
+                                yearCategories[cat] = (yearCategories[cat] || 0) + parseFloat(bill.amount || 0);
+                            });
+                        
+                        monthlyData[month] = {
+                            income: incomeTotal,
+                            bills: billsTotal,
+                            net: incomeTotal - billsTotal,
+                            categories: monthCategories
+                        };
+                        
+                        yearIncome += incomeTotal;
+                        yearBills += billsTotal;
+                    });
+                    
+                    yearlyData[year] = {
+                        months: monthlyData,
+                        income: yearIncome,
+                        bills: yearBills,
+                        net: yearIncome - yearBills,
+                        categories: yearCategories
+                    };
+                });
+                
+                const overallIncome = Object.values(yearlyData).reduce((sum, y) => sum + y.income, 0);
+                const overallBills = Object.values(yearlyData).reduce((sum, y) => sum + y.bills, 0);
+                const overallCategories = {};
+                
+                Object.values(yearlyData).forEach(year => {
+                    Object.entries(year.categories).forEach(([cat, amt]) => {
+                        overallCategories[cat] = (overallCategories[cat] || 0) + amt;
+                    });
+                });
+                
+                return {
+                    years: yearlyData,
+                    overall: {
+                        income: overallIncome,
+                        bills: overallBills,
+                        net: overallIncome - overallBills,
+                        categories: overallCategories
+                    }
+                };
+            }, [bills, incomes, overrides]);
+
             const handleAction = (type, scope) => {
                 const key = `${editCtx.item.id}-${editCtx.item.origDateStr}`;
                 if (type === 'save') {
-                    if (scope === 'individual') setOverrides({ ...overrides, [key]: { ...form } });
-                    else {
+                    if (scope === 'individual') {
+                        // Save this specific occurrence with overrides
+                        setOverrides({ ...overrides, [key]: { 
+                            amount: form.amount, 
+                            date: form.date,
+                            category: form.category 
+                        }});
+                    } else {
+                        // Entire series - update the base item and clear any individual overrides for this item ID
                         const update = (list) => list.map(i => i.id === editCtx.item.id ? { ...i, ...form } : i);
                         editCtx.type === 'income' ? setIncomes(update(incomes)) : setBills(update(bills));
+                        
+                        // Clear all individual overrides for this item across all dates
+                        const newOverrides = {};
+                        Object.keys(overrides).forEach(k => {
+                            const itemId = k.split('-')[0];
+                            if (itemId !== editCtx.item.id.toString()) {
+                                newOverrides[k] = overrides[k];
+                            }
+                        });
+                        setOverrides(newOverrides);
                     }
                 } else {
                     if (scope === 'individual') setOverrides({ ...overrides, [key]: { deleted: true } });
                     else {
                         editCtx.type === 'income' ? setIncomes(incomes.filter(i => i.id !== editCtx.item.id)) : setBills(bills.filter(b => b.id !== editCtx.item.id));
+                        
+                        // Also clear all overrides for this deleted item
+                        const newOverrides = {};
+                        Object.keys(overrides).forEach(k => {
+                            const itemId = k.split('-')[0];
+                            if (itemId !== editCtx.item.id.toString()) {
+                                newOverrides[k] = overrides[k];
+                            }
+                        });
+                        setOverrides(newOverrides);
                     }
                 }
                 setShowModal(null);
@@ -165,10 +476,7 @@
                             <div className="flex gap-3">
                                 <button onClick={() => setIsDark(!isDark)} className="p-3 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm">{isDark ? '☀️' : '🌙'}</button>
                                 <button onClick={() => fileInputRef.current.click()} className="px-5 py-2 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl font-bold text-xs uppercase tracking-widest">Import</button>
-                                <button onClick={() => {
-                                    const blob = new Blob([JSON.stringify({ bills, incomes, overrides })], { type: 'application/json' });
-                                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `flow5y_save.json`; a.click();
-                                }} className="px-5 py-2 bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest">Export</button>
+                                <button onClick={() => { setExportFilename('flow5y_save'); setShowModal('export'); }} className="px-5 py-2 bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest">Export</button>
                                 <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => {
                                     const reader = new FileReader();
                                     reader.onload = (ev) => {
@@ -182,10 +490,68 @@
 
                         <div className="max-w-7xl mx-auto">
                             <div className="flex gap-2 mb-4 overflow-x-auto no-scrollbar">
+                                <button onClick={() => setViewTab('home')} className={`px-8 py-3 rounded-xl font-black shrink-0 ${viewTab === 'home' ? 'tab-active' : 'bg-white dark:bg-slate-800 text-slate-400'}`}>Home</button>
                                 {years.map(y => (
-                                    <button key={y} onClick={() => setActiveYear(y)} className={`px-8 py-3 rounded-xl font-black shrink-0 ${activeYear === y ? 'tab-active' : 'bg-white dark:bg-slate-800 text-slate-400'}`}>{y}</button>
+                                    <button key={y} onClick={() => { setViewTab(y); setActiveYear(y); }} className={`px-8 py-3 rounded-xl font-black shrink-0 ${viewTab === y ? 'tab-active' : 'bg-white dark:bg-slate-800 text-slate-400'}`}>{y}</button>
                                 ))}
                             </div>
+
+                            {viewTab === 'home' ? (
+                                <div className="space-y-8">
+                                    <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border dark:border-slate-700">
+                                        <h2 className="text-2xl font-black mb-6 uppercase tracking-tighter">Overall Summary</h2>
+                                        <div className="grid lg:grid-cols-2 gap-12">
+                                            <div>
+                                                <div className="space-y-6">
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Total Income</p>
+                                                        <p className="text-3xl font-black text-emerald-500">${dashboardData.overall.income.toFixed(2)}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Total Bills</p>
+                                                        <p className="text-3xl font-black text-rose-500">${dashboardData.overall.bills.toFixed(2)}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Net</p>
+                                                        <p className={`text-3xl font-black ${dashboardData.overall.net < 0 ? 'text-rose-500' : dashboardData.overall.net > 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-slate-100'}`}>${dashboardData.overall.net.toFixed(2)}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-sm font-black uppercase tracking-tighter mb-4 text-slate-400">Category Breakdown</h3>
+                                                <PieChart categories={dashboardData.overall.categories || {}} totalIncome={dashboardData.overall.income} />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {years.map(year => (
+                                            <div key={year} className="bg-white dark:bg-slate-800 p-6 rounded-3xl border dark:border-slate-700">
+                                                <h3 className="text-xl font-black mb-4 uppercase tracking-tighter">{year}</h3>
+                                                <div className="space-y-3 mb-4">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase">Income</span>
+                                                        <span className="text-emerald-500 font-black">${dashboardData.years[year].income.toFixed(2)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase">Bills</span>
+                                                        <span className="text-rose-500 font-black">${dashboardData.years[year].bills.toFixed(2)}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="pt-3 mb-4 border-t dark:border-slate-700 flex justify-between items-center">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase">Net</span>
+                                                    <span className={`text-xl font-black ${dashboardData.years[year].net < 0 ? 'text-rose-500' : dashboardData.years[year].net > 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-slate-100'}`}>${dashboardData.years[year].net.toFixed(2)}</span>
+                                                </div>
+                                                <div className="pt-4 border-t dark:border-slate-700">
+                                                    <h4 className="text-[9px] font-black uppercase tracking-tighter mb-3 text-slate-400">Categories</h4>
+                                                    <PieChart categories={dashboardData.years[year].categories || {}} totalIncome={dashboardData.years[year].income} />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
                             <div className="flex gap-5 mb-8 overflow-x-auto no-scrollbar border-b dark:border-slate-800">
                                 {months.map(m => (
                                     <button key={m} onClick={() => setActiveMonth(m)} className={`pb-4 px-1 text-[10px] font-black uppercase shrink-0 ${activeMonth === m ? 'subtab-active' : 'text-slate-300 border-transparent'}`}>{m}</button>
@@ -213,28 +579,34 @@
                                                 <p className="text-xl font-black">{card.incomeGroup.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
                                                 <div className="mt-2 space-y-1">
                                                     {card.incomeGroup.items.map((inc, ii) => (
-                                                        <div key={ii} className="flex justify-between items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 p-1 rounded"
+                                                        <div key={ii} className="flex justify-between items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 p-1 rounded relative group"
                                                             onClick={() => { setEditCtx({ item: inc, type: 'income' }); setForm({ ...inc, date: inc.actualDate.toISOString().split('T')[0] }); setShowModal('edit'); }}>
                                                             <span className="text-[10px] font-black text-indigo-500 uppercase">{inc.name}</span>
                                                             <span className="text-emerald-500 font-black text-xs">+${inc.amount}</span>
+                                                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-10">
+                                                                {inc.name}: ${inc.amount}
+                                                            </div>
                                                         </div>
                                                     ))}
                                                 </div>
                                             </div>
                                             <div className="space-y-3 min-h-[100px]">
                                                 {card.bills.map((b, bi) => (
-                                                    <div key={bi} onClick={() => { setEditCtx({ item: b, type: 'bill' }); setForm({ ...b, date: b.actualDate.toISOString().split('T')[0] }); setShowModal('edit'); }} className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl cursor-pointer hover:ring-1 ring-indigo-500">
+                                                    <div key={bi} onClick={() => { setEditCtx({ item: b, type: 'bill' }); setForm({ ...b, date: b.actualDate.toISOString().split('T')[0] }); setShowModal('edit'); }} className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl cursor-pointer hover:ring-1 ring-indigo-500 relative group">
                                                         <div className="text-[11px] font-bold">
                                                             <p className="uppercase">{b.name}</p>
                                                             <p className="text-slate-400 text-[9px] uppercase">{b.actualDate.getDate()}th • {b.category}</p>
                                                         </div>
                                                         <p className="text-rose-500 font-black text-xs">-${b.amount}</p>
+                                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-10">
+                                                            {b.category}: {b.name} - ${b.amount}
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>
                                             <div className="mt-6 pt-4 border-t dark:border-slate-700 flex justify-between items-center">
                                                 <p className="text-[10px] font-black text-slate-400 uppercase">Remaining</p>
-                                                <p className="text-2xl font-black">${card.remaining.toFixed(2)}</p>
+                                                <p className={`text-2xl font-black ${card.remaining < 0 ? 'text-rose-500' : card.remaining > 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-slate-100'}`}>${card.remaining.toFixed(2)}</p>
                                             </div>
                                         </div>
                                     ))}
@@ -254,8 +626,22 @@
                                                 <div key={i} className="calendar-day border dark:border-slate-700">
                                                     <span className="text-[10px] font-black opacity-30">{day}</span>
                                                     <div className="mt-1 space-y-1">
-                                                        {dayIncs.map((x, xi) => <div key={xi} className="bg-indigo-600 text-white text-[7px] p-1 rounded font-black uppercase truncate">Pay: {x.amount}</div>)}
-                                                        {dayBills.map((x, xi) => <div key={xi} className="bg-rose-500 text-white text-[7px] p-1 rounded font-black uppercase truncate">{x.name}</div>)}
+                                                        {dayIncs.map((x, xi) => (
+                                                            <div key={xi} className="bg-indigo-600 text-white text-[7px] p-1 rounded font-black uppercase truncate relative group cursor-pointer">
+                                                                Pay: {x.amount}
+                                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-900 text-white text-[9px] rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-10">
+                                                                    {x.name}: ${x.amount}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                        {dayBills.map((x, xi) => (
+                                                            <div key={xi} className="bg-rose-500 text-white text-[7px] p-1 rounded font-black uppercase truncate relative group cursor-pointer">
+                                                                {x.name}
+                                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-900 text-white text-[9px] rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-10">
+                                                                    {x.category}: {x.name} - ${x.amount}
+                                                                </div>
+                                                            </div>
+                                                        ))}
                                                     </div>
                                                 </div>
                                             );
@@ -263,9 +649,39 @@
                                     </div>
                                 </div>
                             )}
+                            
+                            {viewTab !== 'home' && dashboardData.years[activeYear]?.months[activeMonth] && (
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border dark:border-slate-700 mt-8">
+                                <h3 className="text-xl font-black mb-6 uppercase tracking-tighter">{activeMonth} {activeYear} Summary</h3>
+                                <div className="grid lg:grid-cols-2 gap-12">
+                                    <div>
+                                        <div className="space-y-6">
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Income</p>
+                                                <p className="text-3xl font-black text-emerald-500">${dashboardData.years[activeYear].months[activeMonth].income.toFixed(2)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Bills</p>
+                                                <p className="text-3xl font-black text-rose-500">${dashboardData.years[activeYear].months[activeMonth].bills.toFixed(2)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Net</p>
+                                                <p className={`text-3xl font-black ${dashboardData.years[activeYear].months[activeMonth].net < 0 ? 'text-rose-500' : dashboardData.years[activeYear].months[activeMonth].net > 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-slate-100'}`}>${dashboardData.years[activeYear].months[activeMonth].net.toFixed(2)}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-black uppercase tracking-tighter mb-4 text-slate-400">Category Breakdown</h4>
+                                        <PieChart categories={dashboardData.years[activeYear].months[activeMonth].categories || {}} totalIncome={dashboardData.years[activeYear].months[activeMonth].income} />
+                                    </div>
+                                </div>
+                            </div>
+                            )}
+                            </>
+                            )}
                         </div>
 
-                        {showModal && (
+                        {showModal && showModal !== 'export' && (
                             <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
                                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl">
                                     <h2 className="text-2xl font-black mb-6 uppercase tracking-tighter italic">{showModal === 'edit' ? 'Update Entry' : `New ${showModal}`}</h2>
@@ -305,7 +721,7 @@
                                             {showModal === 'edit' ? (
                                                 <>
                                                     <div className="grid grid-cols-2 gap-3">
-                                                        <button onClick={() => handleAction('save', 'individual')} className="bg-indigo-100 text-indigo-600 p-4 rounded-xl font-black text-[10px] uppercase">This Date Only</button>
+                                                        <button onClick={() => handleAction('save', 'individual')} className="bg-indigo-100 text-indigo-600 p-4 rounded-xl font-black text-[10px] uppercase">This Item Only</button>
                                                         <button onClick={() => handleAction('save', 'series')} className="bg-indigo-600 text-white p-4 rounded-xl font-black text-[10px] uppercase">Entire Series</button>
                                                     </div>
                                                     <div className="grid grid-cols-2 gap-3">
@@ -320,6 +736,54 @@
                                                     setShowModal(null);
                                                 }}>Add to Schedule</button>
                                             )}
+                                            <button onClick={() => setShowModal(null)} className="w-full py-2 text-[10px] font-black text-slate-400 uppercase">Cancel</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {showModal === 'export' && (
+                            <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl">
+                                    <h2 className="text-2xl font-black mb-6 uppercase tracking-tighter italic">Export Data</h2>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-2 block mb-2">Filename</label>
+                                            <input 
+                                                value={exportFilename} 
+                                                placeholder="Enter filename" 
+                                                className="w-full p-4 bg-slate-100 dark:bg-slate-700 rounded-2xl font-bold dark:text-white outline-none" 
+                                                onChange={e => setExportFilename(e.target.value)}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') {
+                                                        const sanitized = exportFilename.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim() || 'flow5y_save';
+                                                        const blob = new Blob([JSON.stringify({ bills, incomes, overrides })], { type: 'application/json' });
+                                                        const a = document.createElement('a'); 
+                                                        a.href = URL.createObjectURL(blob); 
+                                                        a.download = `${sanitized}.json`; 
+                                                        a.click();
+                                                        setShowModal(null);
+                                                    }
+                                                }}
+                                            />
+                                            <p className="text-[8px] text-slate-400 mt-2 ml-2">Cannot contain: &lt; &gt; : " / \ | ? * or control characters</p>
+                                        </div>
+                                        <div className="space-y-3 pt-4">
+                                            <button 
+                                                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase" 
+                                                onClick={() => {
+                                                    const sanitized = exportFilename.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim() || 'flow5y_save';
+                                                    const blob = new Blob([JSON.stringify({ bills, incomes, overrides })], { type: 'application/json' });
+                                                    const a = document.createElement('a'); 
+                                                    a.href = URL.createObjectURL(blob); 
+                                                    a.download = `${sanitized}.json`; 
+                                                    a.click();
+                                                    setShowModal(null);
+                                                }}
+                                            >
+                                                Download
+                                            </button>
                                             <button onClick={() => setShowModal(null)} className="w-full py-2 text-[10px] font-black text-slate-400 uppercase">Cancel</button>
                                         </div>
                                     </div>
